@@ -140,7 +140,7 @@ const RecommendationPage = () => {
         // Show success message
         setTimeout(() => {
           if (recentlyAdded.length === 0) {
-            alert(`Added "${details.title}" to WatchCraft! ${watchTogether ? 'Marked to watch together!' : ''}`);
+            alert(`Added "${details.title}" to Watchlist! ${watchTogether ? 'Marked to watch together!' : ''}`);
           }
         }, 100);
       }
@@ -194,7 +194,7 @@ const RecommendationPage = () => {
           <div className="text-center mb-6">
             <div className="text-5xl mb-4">🎬</div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">WatchCraft</h1>
-            <p className="text-gray-600">Recommend something to watch!</p>
+            <p className="text-gray-600">Recommend something you want Noah to watch!</p>
           </div>
           
           <form onSubmit={handleNameSubmit} className="space-y-4">
@@ -260,7 +260,7 @@ const RecommendationPage = () => {
                     className="w-full text-sm bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-1"
                   >
                     <UserPlus className="h-4 w-4" />
-                    Watch Together?
+                    Want to Watch Together?
                   </button>
                 )}
                 {isAlreadyWatchingWith && (
@@ -289,7 +289,7 @@ const RecommendationPage = () => {
       <div className="bg-white shadow-sm border-b sticky top-0 z-10">
         <div className="max-w-4xl mx-auto p-4">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-gray-900">🎬 Recommend to WatchCraft</h1>
+            <h1 className="text-2xl font-bold text-gray-900">🎬 Recommend to Noah</h1>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <UserCircle className="h-4 w-4" />
               {recommenderName}
@@ -371,7 +371,7 @@ const RecommendationPage = () => {
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🔍</div>
             <h2 className="text-xl font-semibold text-gray-700 mb-2">Search for something to recommend</h2>
-            <p className="text-gray-500">Find movies or TV shows you think would be enjoyed!</p>
+            <p className="text-gray-500">Find movies or TV shows you think Noah would enjoy!</p>
           </div>
         )}
       </div>
@@ -1739,7 +1739,7 @@ const MainWatchCraftApp = () => {
             
             <h3 className="font-semibold text-lg mb-2">🎬 Recommend Shows & Movies!</h3>
             <p className="text-gray-600 text-sm mb-4">
-              Scan to add your recommendations to my WatchCraft
+              Scan to add your recommendations to Noah's Watchlist 
             </p>
             
             <div className="space-y-3">
@@ -1766,7 +1766,7 @@ const MainWatchCraftApp = () => {
             
             <div className="mt-4 p-3 bg-blue-50 rounded-md">
               <p className="text-xs text-blue-800">
-                <strong>Perfect for:</strong> Print this for your living room, share at parties, or send to friends who want to recommend shows!
+                <strong>Perfect for:</strong> Enter your name as "anonymous" if you don't want to take credit for your recommendation(s)
               </p>
             </div>
           </div>
@@ -1781,7 +1781,7 @@ const MainWatchCraftApp = () => {
         <div className="text-center">
           <Loader className="h-12 w-12 animate-spin mx-auto mb-4 text-blue-600" />
           <h2 className="text-xl font-semibold mb-2">Loading WatchCraft...</h2>
-          <p className="text-gray-600">Connecting to your watchlist database</p>
+          <p className="text-gray-600">Connecting to morphogenetic field</p>
         </div>
       </div>
     );
@@ -1843,7 +1843,7 @@ const MainWatchCraftApp = () => {
               <button
                 onClick={() => setShowQRModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
-                title="Share WatchCraft"
+                title="Hi :) Welcome to my app - Noah"
               >
                 <QrCode className="h-4 w-4" />
                 Share
