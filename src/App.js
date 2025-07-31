@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, Play, Users, Star, Clock, Tag, Download, Loader, Trash2, Edit3, Save, X, Grid, List, UserPlus } from 'lucide-react';
+import { Search, Plus, Filter, Play, Users, Star, Clock, Tag, Download, Loader, Trash2, Edit3, Save, X, Grid, List, UserPlus, Share2, QrCode, Send, UserCircle } from 'lucide-react';
 import { 
   getAllWatchlistItems, 
   addWatchlistItem, 
@@ -7,7 +7,410 @@ import {
   deleteWatchlistItem
 } from './firebase/watchlistService';
 
+// Simple routing based on URL path
+const getCurrentPage = () => {
+  const path = window.location.pathname;
+  if (path === '/recommend') return 'recommend';
+  return 'main';
+};
+
+// Recommendation Page Component
+const RecommendationPage = () => {
+  const [recommenderName, setRecommenderName] = useState('');
+  const [showNamePrompt, setShowNamePrompt] = useState(true);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [recentlyAdded, setRecentlyAdded] = useState([]);
+  const [watchTogether, setWatchTogether] = useState(false);
+  const [existingItems, setExistingItems] = useState([]);
+  const [isLoadingWatchlist, setIsLoadingWatchlist] = useState(true);
+  
+  const OMDB_API_KEY = 'cca39492';
+
+  // Load existing watchlist on mount
+  useEffect(() => {
+    const loadExistingItems = async () => {
+      try {
+        setIsLoadingWatchlist(true);
+        const items = await getAllWatchlistItems();
+        setExistingItems(items);
+      } catch (error) {
+        console.error('Error loading watchlist:', error);
+      } finally {
+        setIsLoadingWatchlist(false);
+      }
+    };
+    
+    loadExistingItems();
+  }, []);
+
+  // Check if an item already exists in the watchlist
+  const checkExistingItem = (imdbID) => {
+    return existingItems.find(item => item.imdbId === imdbID);
+  };
+
+  const handleNameSubmit = (e) => {
+    e.preventDefault();
+    if (recommenderName.trim()) {
+      setShowNamePrompt(false);
+      // Store name in session
+      sessionStorage.setItem('recommenderName', recommenderName.trim());
+    }
+  };
+
+  const searchOMDB = async (query) => {
+    if (!query.trim()) return;
+    
+    setIsSearching(true);
+    try {
+      const response = await fetch(`https://www.omdbapi.com/?s=${encodeURIComponent(query)}&apikey=${OMDB_API_KEY}`);
+      const data = await response.json();
+      
+      if (data.Response === "True") {
+        setSearchResults(data.Search || []);
+      } else {
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error('Error searching OMDB:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const getOMDBDetails = async (imdbID) => {
+    try {
+      const response = await fetch(`https://www.omdbapi.com/?i=${imdbID}&apikey=${OMDB_API_KEY}`);
+      const data = await response.json();
+      
+      if (data.Response === "True") {
+        return {
+          title: data.Title,
+          type: data.Type === 'movie' ? 'movie' : 'tv',
+          genre: data.Genre ? data.Genre.split(', ') : [],
+          runtime: data.Type === 'movie' ? parseInt(data.Runtime) || 0 : parseInt(data.Runtime) || 22,
+          releaseYear: parseInt(data.Year) || new Date().getFullYear(),
+          poster: data.Poster !== 'N/A' ? data.Poster : `https://via.placeholder.com/150x225/607D8B/white?text=${data.Title.replace(' ', '+')}`,
+          imdbId: data.imdbID,
+          plot: data.Plot,
+          director: data.Director,
+          actors: data.Actors,
+          imdbRating: parseFloat(data.imdbRating) || 0,
+          totalSeasons: data.Type !== 'movie' ? parseInt(data.totalSeasons) || 1 : null
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching OMDB details:', error);
+      return null;
+    }
+  };
+
+  const handleAddRecommendation = async (omdbItem) => {
+    try {
+      const details = await getOMDBDetails(omdbItem.imdbID);
+      if (details) {
+        const newItem = {
+          ...details,
+          mood: [],
+          status: 'not started',
+          recommendedBy: [recommenderName],
+          watchingWith: watchTogether ? [recommenderName] : [],
+          lastWatched: null,
+          watchDates: [],
+          totalEpisodes: details.type === 'tv' ? (details.totalSeasons * 20) : null,
+          episodeLength: details.type === 'tv' ? details.runtime : null,
+          runtime: details.type === 'movie' ? details.runtime : null,
+          currentSeason: 1,
+          currentEpisode: 1,
+          viewingProgress: {},
+          addedViaRecommendation: true,
+          recommendationDate: new Date().toISOString()
+        };
+        
+        await addWatchlistItem(newItem);
+        setRecentlyAdded([...recentlyAdded, details.title]);
+        
+        // Update existing items list
+        const updatedItems = await getAllWatchlistItems();
+        setExistingItems(updatedItems);
+        
+        // Show success message
+        setTimeout(() => {
+          if (recentlyAdded.length === 0) {
+            alert(`Added "${details.title}" to WatchCraft! ${watchTogether ? 'Marked to watch together!' : ''}`);
+          }
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error adding recommendation:', error);
+      alert('Failed to add recommendation. Please try again.');
+    }
+  };
+
+  const handleAddToWatchTogether = async (existingItem) => {
+    try {
+      const updatedRecommendedBy = existingItem.recommendedBy || [];
+      if (!updatedRecommendedBy.includes(recommenderName)) {
+        updatedRecommendedBy.push(recommenderName);
+      }
+      
+      const updatedWatchingWith = existingItem.watchingWith || [];
+      if (!updatedWatchingWith.includes(recommenderName)) {
+        updatedWatchingWith.push(recommenderName);
+      }
+      
+      await updateWatchlistItem(existingItem.id, {
+        recommendedBy: updatedRecommendedBy,
+        watchingWith: updatedWatchingWith
+      });
+      
+      // Update local state
+      const updatedItems = await getAllWatchlistItems();
+      setExistingItems(updatedItems);
+      
+      alert(`Great! You've been added to watch "${existingItem.title}" together!`);
+    } catch (error) {
+      console.error('Error updating item:', error);
+      alert('Failed to update. Please try again.');
+    }
+  };
+
+  // Check for stored name on mount
+  useEffect(() => {
+    const storedName = sessionStorage.getItem('recommenderName');
+    if (storedName) {
+      setRecommenderName(storedName);
+      setShowNamePrompt(false);
+    }
+  }, []);
+
+  if (showNamePrompt) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-4">🎬</div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">WatchCraft</h1>
+            <p className="text-gray-600">Recommend something to watch!</p>
+          </div>
+          
+          <form onSubmit={handleNameSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                What's your name?
+              </label>
+              <input
+                type="text"
+                value={recommenderName}
+                onChange={(e) => setRecommenderName(e.target.value)}
+                placeholder="Enter your name..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                autoFocus
+                required
+              />
+            </div>
+            
+            <button
+              type="submit"
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center gap-2 text-lg font-medium"
+            >
+              Continue
+              <Send className="h-5 w-5" />
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  const renderSearchResultItem = (item) => {
+    const existingItem = checkExistingItem(item.imdbID);
+    const isAlreadyWatching = existingItem && ['currently watching', 'currently rewatching', 'to rewatch', 'on hold', 'completed'].includes(existingItem.status);
+    const isOnWatchlist = existingItem && existingItem.status === 'not started';
+    const isAlreadyWatchingWith = existingItem && existingItem.watchingWith && existingItem.watchingWith.includes(recommenderName);
+
+    return (
+      <div key={item.imdbID} className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow">
+        <div className="flex gap-3">
+          <img
+            src={item.Poster !== 'N/A' ? item.Poster : `https://via.placeholder.com/80x120/607D8B/white?text=${item.Title.slice(0,3)}`}
+            alt={item.Title}
+            className="w-20 h-28 object-cover rounded"
+          />
+          <div className="flex-1">
+            <h3 className="font-semibold text-sm mb-1 line-clamp-2">{item.Title}</h3>
+            <p className="text-xs text-gray-600 mb-1">{item.Year}</p>
+            <p className="text-xs text-gray-600 mb-3 capitalize">{item.Type}</p>
+            
+            {isAlreadyWatching ? (
+              <div className="bg-purple-100 text-purple-800 px-3 py-2 rounded text-sm font-medium text-center">
+                ✨ Already {existingItem.status === 'completed' ? 'watched' : 'watching'}!
+              </div>
+            ) : isOnWatchlist ? (
+              <div className="space-y-2">
+                <div className="bg-blue-100 text-blue-800 px-3 py-2 rounded text-sm text-center">
+                  📋 Already on watchlist!
+                </div>
+                {!isAlreadyWatchingWith && (
+                  <button
+                    onClick={() => handleAddToWatchTogether(existingItem)}
+                    className="w-full text-sm bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-1"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Watch Together?
+                  </button>
+                )}
+                {isAlreadyWatchingWith && (
+                  <div className="text-center text-xs text-green-600 font-medium">
+                    ✓ You're set to watch together!
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => handleAddRecommendation(item)}
+                className="w-full text-sm bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-1"
+              >
+                <Plus className="h-4 w-4" />
+                Recommend This
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-gray-900">🎬 Recommend to WatchCraft</h1>
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <UserCircle className="h-4 w-4" />
+              {recommenderName}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="watchTogether"
+                checked={watchTogether}
+                onChange={(e) => setWatchTogether(e.target.checked)}
+                className="h-4 w-4 text-blue-600 rounded"
+              />
+              <label htmlFor="watchTogether" className="text-sm text-gray-700">
+                I want to watch new recommendations together
+              </label>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search for movies or TV shows..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && searchOMDB(searchQuery)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              onClick={() => searchOMDB(searchQuery)}
+              disabled={isSearching || isLoadingWatchlist}
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {isSearching ? <Loader className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Search
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto p-4">
+        {recentlyAdded.length > 0 && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h3 className="font-semibold text-green-800 mb-2">✅ Successfully Added:</h3>
+            <ul className="space-y-1">
+              {recentlyAdded.map((title, index) => (
+                <li key={index} className="text-green-700">• {title}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {isSearching && (
+          <div className="text-center py-12">
+            <Loader className="h-8 w-8 animate-spin mx-auto mb-2" />
+            <p>Searching...</p>
+          </div>
+        )}
+
+        {searchResults.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {searchResults.map(renderSearchResultItem)}
+          </div>
+        )}
+
+        {searchResults.length === 0 && searchQuery && !isSearching && (
+          <div className="text-center py-12 text-gray-500">
+            <p>No results found for "{searchQuery}"</p>
+            <p className="text-sm mt-2">Try searching with different keywords</p>
+          </div>
+        )}
+
+        {!searchQuery && searchResults.length === 0 && (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">🔍</div>
+            <h2 className="text-xl font-semibold text-gray-700 mb-2">Search for something to recommend</h2>
+            <p className="text-gray-500">Find movies or TV shows you think would be enjoyed!</p>
+          </div>
+        )}
+      </div>
+
+      <div className="fixed bottom-4 right-4">
+        <a
+          href="/"
+          className="bg-gray-600 text-white px-4 py-2 rounded-full shadow-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
+        >
+          ← Back to WatchCraft
+        </a>
+      </div>
+    </div>
+  );
+};
+
 const WatchCraftApp = () => {
+  const [currentPage, setCurrentPage] = useState(getCurrentPage());
+
+  // Listen for navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPage(getCurrentPage());
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Render the appropriate page
+  if (currentPage === 'recommend') {
+    return <RecommendationPage />;
+  }
+
+  return <MainWatchCraftApp />;
+};
+
+// Main WatchCraft app as separate component
+const MainWatchCraftApp = () => {
   const [watchlist, setWatchlist] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -20,6 +423,7 @@ const WatchCraftApp = () => {
   const [error, setError] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
+  const [showQRModal, setShowQRModal] = useState(false);
   
   const OMDB_API_KEY = 'cca39492';
   
@@ -1277,6 +1681,100 @@ const WatchCraftApp = () => {
     );
   };
 
+  // QR Code Modal Component
+  const QRCodeModal = () => {
+    const recommendUrl = 'https://watchcraft-phi.vercel.app/recommend';
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(recommendUrl)}`;
+    
+    return (
+      <div 
+        className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center p-4"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem'
+        }}
+        onClick={() => setShowQRModal(false)}
+      >
+        <div 
+          className="bg-white rounded-lg p-6 w-full max-w-md"
+          style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '1.5rem',
+            width: '100%',
+            maxWidth: '28rem',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Share WatchCraft</h2>
+            <button
+              onClick={() => setShowQRModal(false)}
+              className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              style={{ fontSize: '1.5rem', lineHeight: 1 }}
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className="text-center">
+            <div className="bg-gray-50 p-6 rounded-lg mb-4">
+              <img 
+                src={qrCodeUrl} 
+                alt="WatchCraft QR Code" 
+                className="mx-auto"
+                style={{ imageRendering: 'pixelated' }}
+              />
+            </div>
+            
+            <h3 className="font-semibold text-lg mb-2">🎬 Recommend Shows & Movies!</h3>
+            <p className="text-gray-600 text-sm mb-4">
+              Scan to add your recommendations to my WatchCraft
+            </p>
+            
+            <div className="space-y-3">
+              <a
+                href={qrCodeUrl}
+                download="watchcraft-recommendations-qr.png"
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download QR Code
+              </a>
+              
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(recommendUrl);
+                  alert('Recommendation link copied to clipboard!');
+                }}
+                className="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300 flex items-center justify-center gap-2"
+              >
+                <Share2 className="h-4 w-4" />
+                Copy Recommendation Link
+              </button>
+            </div>
+            
+            <div className="mt-4 p-3 bg-blue-50 rounded-md">
+              <p className="text-xs text-blue-800">
+                <strong>Perfect for:</strong> Print this for your living room, share at parties, or send to friends who want to recommend shows!
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -1342,6 +1840,15 @@ const WatchCraftApp = () => {
             </div>
             
             <div className="flex gap-2">
+              <button
+                onClick={() => setShowQRModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
+                title="Share WatchCraft"
+              >
+                <QrCode className="h-4 w-4" />
+                Share
+              </button>
+              
               <button
                 onClick={() => setViewMode(viewMode === 'grid' ? 'compact' : 'grid')}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
@@ -1570,6 +2077,7 @@ const WatchCraftApp = () => {
       {showAddForm && <AddItemForm />}
       {showOMDBSearch && <OMDBSearchModal />}
       {showFilters && <FilterModal />}
+      {showQRModal && <QRCodeModal />}
       {editingItem && <EditingModal item={watchlist.find(item => item.id === editingItem.id)} />}
     </div>
   );
