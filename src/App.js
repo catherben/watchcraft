@@ -194,13 +194,13 @@ const RecommendationPage = () => {
           <div className="text-center mb-6">
             <div className="text-5xl mb-4">🎬</div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">WatchCraft</h1>
-            <p className="text-gray-600">Recommend something you want me to watch!</p>
+            <p className="text-gray-600">Recommend something you want me to watch! Type "anonymous" if you don't want to take credit for your recommendation.</p>
           </div>
           
           <form onSubmit={handleNameSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                What's your name? Type "anonymous" if you don't want to take credit for your recommendation.
+                What's your name? 
               </label>
               <input
                 type="text"
@@ -1717,7 +1717,7 @@ const MainWatchCraftApp = () => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Share WatchCraft</h2>
+            <h2 className="text-xl font-bold">If you have this link you have good taste ;)</h2>
             <button
               onClick={() => setShowQRModal(false)}
               className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
@@ -1766,7 +1766,7 @@ const MainWatchCraftApp = () => {
             
             <div className="mt-4 p-3 bg-blue-50 rounded-md">
               <p className="text-xs text-blue-800">
-                <strong>Perfect for:</strong> Enter your name as "anonymous" if you don't want to take credit for your recommendation(s)
+                <strong>Tip:</strong> Enter your name as "anonymous" if you don't want to take credit for your recommendation(s)
               </p>
             </div>
           </div>
