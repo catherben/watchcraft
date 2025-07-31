@@ -1,0 +1,12 @@
+{
+  "routes": [
+    {
+      "src": "/recommend",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
