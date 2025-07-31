@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, Play, Users, Star, Clock, Tag, Download, Loader, Trash2, Edit3, Save, X, Grid, List, UserPlus, Share2, QrCode, Send, UserCircle } from 'lucide-react';
+import { Search, Plus, Filter, Play, Users, Star, Clock, Tag, Download, Loader, Trash2, Edit3, Save, X, Grid, List, UserPlus, Share2, QrCode, Send, UserCircle, Shuffle, ArrowUpDown } from 'lucide-react';
 import { 
   getAllWatchlistItems, 
   addWatchlistItem, 
@@ -200,7 +200,7 @@ const RecommendationPage = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
           <div className="text-center mb-6">
-            <div className="text-5xl mb-4">🎬🪄</div>
+            <div className="text-5xl mb-4">🎬</div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">WatchCraft</h1>
             <p className="text-gray-600">Recommend something to watch!</p>
           </div>
@@ -297,7 +297,7 @@ const RecommendationPage = () => {
       <div className="bg-white shadow-sm border-b sticky top-0 z-10">
         <div className="max-w-4xl mx-auto p-4">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-gray-900">🎬🪄 Recommend to WatchCraft</h1>
+            <h1 className="text-2xl font-bold text-gray-900">🎬 Recommend to WatchCraft</h1>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <UserCircle className="h-4 w-4" />
@@ -442,6 +442,9 @@ const MainWatchCraftApp = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showRandomModal, setShowRandomModal] = useState(false);
+  const [randomItem, setRandomItem] = useState(null);
+  const [sortBy, setSortBy] = useState('dateAdded'); // default sort
   
   const OMDB_API_KEY = 'cca39492';
   
@@ -593,6 +596,46 @@ const MainWatchCraftApp = () => {
     setEditingItem(null);
   };
 
+  const getRandomItem = () => {
+    if (filteredList.length === 0) {
+      alert('No items match the current filters!');
+      return;
+    }
+    
+    const randomIndex = Math.floor(Math.random() * filteredList.length);
+    setRandomItem(filteredList[randomIndex]);
+    setShowRandomModal(true);
+  };
+
+  const sortItems = (items, sortType) => {
+    const sortedItems = [...items];
+    
+    switch(sortType) {
+      case 'dateAdded':
+        // Most recently added first (default Firebase order)
+        return sortedItems;
+      case 'alphabetical':
+        return sortedItems.sort((a, b) => a.title.localeCompare(b.title));
+      case 'rating':
+        return sortedItems.sort((a, b) => (b.imdbRating || 0) - (a.imdbRating || 0));
+      case 'runtime':
+        return sortedItems.sort((a, b) => {
+          const aRuntime = a.runtime || a.episodeLength || 0;
+          const bRuntime = b.runtime || b.episodeLength || 0;
+          return aRuntime - bRuntime;
+        });
+      case 'releaseYear':
+        return sortedItems.sort((a, b) => (b.releaseYear || 0) - (a.releaseYear || 0));
+      case 'status':
+        const statusOrder = ['currently watching', 'currently rewatching', 'not started', 'on hold', 'to rewatch', 'completed'];
+        return sortedItems.sort((a, b) => {
+          return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+        });
+      default:
+        return sortedItems;
+    }
+  };
+
   useEffect(() => {
     let filtered = watchlist.filter(item => {
       const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
@@ -621,8 +664,11 @@ const MainWatchCraftApp = () => {
       return matchesSearch && matchesGenre && matchesMood && matchesStatus && matchesRecommender && matchesWatchingWith && matchesType && matchesLength;
     });
     
+    // Apply sorting
+    filtered = sortItems(filtered, sortBy);
+    
     setFilteredList(filtered);
-  }, [watchlist, searchTerm, filters]);
+  }, [watchlist, searchTerm, filters, sortBy]);
 
   const getStatusStyle = (status) => {
     switch(status) {
@@ -1699,6 +1745,119 @@ const MainWatchCraftApp = () => {
     );
   };
 
+  // Random Item Modal Component
+  const RandomItemModal = () => {
+    if (!randomItem) return null;
+    
+    return (
+      <div 
+        className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center p-4"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem'
+        }}
+        onClick={() => setShowRandomModal(false)}
+      >
+        <div 
+          className="bg-white rounded-lg p-6 w-full max-w-md"
+          style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '1.5rem',
+            width: '100%',
+            maxWidth: '28rem',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">🎲 Your Random Pick!</h2>
+            <button
+              onClick={() => setShowRandomModal(false)}
+              className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              style={{ fontSize: '1.5rem', lineHeight: 1 }}
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className="text-center">
+            <img
+              src={randomItem.poster}
+              alt={randomItem.title}
+              className="w-48 h-72 object-cover mx-auto rounded-lg shadow-md mb-4"
+            />
+            
+            <h3 className="text-2xl font-bold mb-2">{randomItem.title}</h3>
+            
+            <div className="space-y-2 text-gray-600 mb-4">
+              <p className="text-sm">
+                <span className="font-semibold">Type:</span> {randomItem.type === 'tv' ? 'TV Show' : 'Movie'}
+              </p>
+              {randomItem.genre && randomItem.genre.length > 0 && (
+                <p className="text-sm">
+                  <span className="font-semibold">Genre:</span> {randomItem.genre.join(', ')}
+                </p>
+              )}
+              <p className="text-sm">
+                <span className="font-semibold">Runtime:</span> {randomItem.type === 'movie' 
+                  ? formatRuntime(randomItem.runtime)
+                  : `${randomItem.episodeLength}min episodes`
+                }
+              </p>
+              {randomItem.imdbRating && (
+                <p className="text-sm">
+                  <span className="font-semibold">Rating:</span> ⭐ {randomItem.imdbRating}/10
+                </p>
+              )}
+              {randomItem.recommendedBy && randomItem.recommendedBy.length > 0 && (
+                <p className="text-sm">
+                  <span className="font-semibold">Recommended by:</span> {randomItem.recommendedBy.join(', ')}
+                </p>
+              )}
+              <div className="mt-2">
+                <span 
+                  className="inline-block px-3 py-1 rounded-full text-sm font-semibold"
+                  style={getStatusStyle(randomItem.status)}
+                >
+                  {randomItem.status.toUpperCase()}
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowRandomModal(false);
+                  startEditing(randomItem);
+                }}
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+              >
+                Edit Details
+              </button>
+              <button
+                onClick={getRandomItem}
+                className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 flex items-center justify-center gap-2"
+              >
+                <Shuffle className="h-4 w-4" />
+                Try Another
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // QR Code Modal Component
   const QRCodeModal = () => {
     const recommendUrl = 'https://watchcraft-phi.vercel.app/recommend';
@@ -1735,7 +1894,7 @@ const MainWatchCraftApp = () => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Save QR code or link to recommend stuff to Noah whenever you feel like it</h2>
+            <h2 className="text-xl font-bold">Share WatchCraft</h2>
             <button
               onClick={() => setShowQRModal(false)}
               className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
@@ -1755,7 +1914,7 @@ const MainWatchCraftApp = () => {
               />
             </div>
             
-            <h3 className="font-semibold text-lg mb-2">🎬🪄 Recommend Shows & Movies!</h3>
+            <h3 className="font-semibold text-lg mb-2">🎬 Recommend Shows & Movies!</h3>
             <p className="text-gray-600 text-sm mb-4">
               Scan to add your recommendations to my WatchCraft
             </p>
@@ -1784,7 +1943,7 @@ const MainWatchCraftApp = () => {
             
             <div className="mt-4 p-3 bg-blue-50 rounded-md">
               <p className="text-xs text-blue-800">
-                <strong>Tip:</strong> type anonymous if you don't want to take credit for your recommendation!
+                <strong>Perfect for:</strong> Print this for your living room, share at parties, or send to friends who want to recommend shows!
               </p>
             </div>
           </div>
@@ -1799,7 +1958,7 @@ const MainWatchCraftApp = () => {
         <div className="text-center">
           <Loader className="h-12 w-12 animate-spin mx-auto mb-4 text-blue-600" />
           <h2 className="text-xl font-semibold mb-2">Loading WatchCraft...</h2>
-          <p className="text-gray-600">Connecting to morphogenetic field</p>
+          <p className="text-gray-600">Connecting to your watchlist database</p>
         </div>
       </div>
     );
@@ -1842,7 +2001,7 @@ const MainWatchCraftApp = () => {
       >
         <div className="max-w-7xl mx-auto p-4">
           {/* App Title */}
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">🎬🪄 WatchCraft</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">🎬 WatchCraft</h1>
           
           {/* Controls Row */}
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
@@ -1861,7 +2020,7 @@ const MainWatchCraftApp = () => {
               <button
                 onClick={() => setShowQRModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
-                title="Hi :)"
+                title="Share WatchCraft"
               >
                 <QrCode className="h-4 w-4" />
                 Share
@@ -2096,6 +2255,7 @@ const MainWatchCraftApp = () => {
       {showOMDBSearch && <OMDBSearchModal />}
       {showFilters && <FilterModal />}
       {showQRModal && <QRCodeModal />}
+      {showRandomModal && <RandomItemModal />}
       {editingItem && <EditingModal item={watchlist.find(item => item.id === editingItem.id)} />}
     </div>
   );
