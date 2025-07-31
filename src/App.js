@@ -194,13 +194,13 @@ const RecommendationPage = () => {
           <div className="text-center mb-6">
             <div className="text-5xl mb-4">🎬</div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">WatchCraft</h1>
-            <p className="text-gray-600">Recommend something you want Noah to watch!</p>
+            <p className="text-gray-600">Recommend something you want me to watch!</p>
           </div>
           
           <form onSubmit={handleNameSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                What's your name?
+                What's your name? Type "anonymous" if you don't want to take credit for your recommendation.
               </label>
               <input
                 type="text"
