@@ -1735,7 +1735,7 @@ const MainWatchCraftApp = () => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Share WatchCraft</h2>
+            <h2 className="text-xl font-bold">Save QR code or link to recommend stuff to Noah whenever you feel like it</h2>
             <button
               onClick={() => setShowQRModal(false)}
               className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
@@ -1784,7 +1784,7 @@ const MainWatchCraftApp = () => {
             
             <div className="mt-4 p-3 bg-blue-50 rounded-md">
               <p className="text-xs text-blue-800">
-                <strong>Perfect for:</strong> Print this for your living room, share at parties, or send to friends who want to recommend shows!
+                <strong>Tip:</strong> type anonymous if you don't want to take credit for your recommendation!
               </p>
             </div>
           </div>
@@ -1799,7 +1799,7 @@ const MainWatchCraftApp = () => {
         <div className="text-center">
           <Loader className="h-12 w-12 animate-spin mx-auto mb-4 text-blue-600" />
           <h2 className="text-xl font-semibold mb-2">Loading WatchCraft...</h2>
-          <p className="text-gray-600">Connecting to your watchlist database</p>
+          <p className="text-gray-600">Connecting to morphogenetic field</p>
         </div>
       </div>
     );
@@ -1861,7 +1861,7 @@ const MainWatchCraftApp = () => {
               <button
                 onClick={() => setShowQRModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
-                title="Share WatchCraft"
+                title="Hi :)"
               >
                 <QrCode className="h-4 w-4" />
                 Share
