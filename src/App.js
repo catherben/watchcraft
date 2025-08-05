@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, Play, Users, Star, Clock, Tag, Download, Loader, Trash2, Edit3, Save, X, Grid, List, UserPlus, Share2, QrCode, Send, UserCircle, ArrowUpDown, Shuffle, MessageSquare } from 'lucide-react';
+import { Search, Plus, Filter, Play, Users, Star, Clock, Tag, Download, Loader, Trash2, Edit3, Save, X, Grid, List, UserPlus, Share2, QrCode, Send, UserCircle } from 'lucide-react';
 import { 
   getAllWatchlistItems, 
   addWatchlistItem, 
@@ -25,9 +25,6 @@ const RecommendationPage = () => {
   const [watchTogether, setWatchTogether] = useState(false);
   const [existingItems, setExistingItems] = useState([]);
   const [isLoadingWatchlist, setIsLoadingWatchlist] = useState(true);
-  const [showNoteModal, setShowNoteModal] = useState(false);
-  const [pendingRecommendation, setPendingRecommendation] = useState(null);
-  const [recommendationNote, setRecommendationNote] = useState('');
   
   const OMDB_API_KEY = 'cca39492';
 
@@ -123,66 +120,38 @@ const RecommendationPage = () => {
     try {
       const details = await getOMDBDetails(omdbItem.imdbID);
       if (details) {
-        // Store the recommendation details and show note modal
-        setPendingRecommendation({ omdbItem, details });
-        setShowNoteModal(true);
+        const newItem = {
+          ...details,
+          mood: [],
+          status: 'not started',
+          recommendedBy: [recommenderName],
+          watchingWith: watchTogether ? [recommenderName] : [],
+          lastWatched: null,
+          watchDates: [],
+          totalEpisodes: details.type === 'tv' ? (details.totalSeasons * 20) : null,
+          episodeLength: details.type === 'tv' ? details.runtime : null,
+          runtime: details.type === 'movie' ? details.runtime : null,
+          currentSeason: 1,
+          currentEpisode: 1,
+          viewingProgress: {},
+          addedViaRecommendation: true,
+          recommendationDate: new Date().toISOString()
+        };
+        
+        await addWatchlistItem(newItem);
+        setRecentlyAdded([...recentlyAdded, details.title]);
+        
+        // Update existing items list
+        const updatedItems = await getAllWatchlistItems();
+        setExistingItems(updatedItems);
+        
+        // Show success message
+        setTimeout(() => {
+          if (recentlyAdded.length === 0) {
+            alert(`Added "${details.title}" to WatchCraft! ${watchTogether ? 'Marked to watch together!' : ''}`);
+          }
+        }, 100);
       }
-    } catch (error) {
-      console.error('Error preparing recommendation:', error);
-      alert('Failed to prepare recommendation. Please try again.');
-    }
-  };
-
-  const confirmAddRecommendation = async () => {
-    if (!pendingRecommendation) return;
-    
-    try {
-      const { details } = pendingRecommendation;
-      const notes = recommendationNote.trim() ? [{
-        text: recommendationNote.trim(),
-        author: recommenderName,
-        date: new Date().toISOString(),
-        isRecommendationNote: true
-      }] : [];
-
-      const newItem = {
-        ...details,
-        mood: [],
-        status: 'not started',
-        recommendedBy: [recommenderName],
-        watchingWith: watchTogether ? [recommenderName] : [],
-        lastWatched: null,
-        watchDates: [],
-        totalEpisodes: details.type === 'tv' ? (details.totalSeasons * 20) : null,
-        episodeLength: details.type === 'tv' ? details.runtime : null,
-        runtime: details.type === 'movie' ? details.runtime : null,
-        currentSeason: 1,
-        currentEpisode: 1,
-        viewingProgress: {},
-        addedViaRecommendation: true,
-        recommendationDate: new Date().toISOString(),
-        dateAdded: new Date().toISOString(),
-        notes: notes
-      };
-      
-      await addWatchlistItem(newItem);
-      setRecentlyAdded([...recentlyAdded, details.title]);
-      
-      // Update existing items list
-      const updatedItems = await getAllWatchlistItems();
-      setExistingItems(updatedItems);
-      
-      // Reset and close
-      setShowNoteModal(false);
-      setPendingRecommendation(null);
-      setRecommendationNote('');
-      
-      // Show success message
-      setTimeout(() => {
-        if (recentlyAdded.length === 0) {
-          alert(`Added "${details.title}" to WatchCraft! ${watchTogether ? 'Marked to watch together!' : ''}`);
-        }
-      }, 100);
     } catch (error) {
       console.error('Error adding recommendation:', error);
       alert('Failed to add recommendation. Please try again.');
@@ -313,177 +282,10 @@ const RecommendationPage = () => {
                 onClick={() => handleAddRecommendation(item)}
                 className="w-full text-sm bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-1"
               >
-                <MessageSquare className="h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 Recommend This
               </button>
             )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Notes Modal Component
-  const NotesModal = () => {
-    const [localNotes, setLocalNotes] = useState(notesItem?.notes || []);
-    const [newNote, setNewNote] = useState('');
-
-    const addNote = () => {
-      if (newNote.trim()) {
-        const note = {
-          text: newNote.trim(),
-          author: 'You', // Since this is for the main user's personal notes
-          date: new Date().toISOString(),
-          isRecommendationNote: false
-        };
-        setLocalNotes([...localNotes, note]);
-        setNewNote('');
-      }
-    };
-
-    const deleteNote = (indexToDelete) => {
-      setLocalNotes(localNotes.filter((_, index) => index !== indexToDelete));
-    };
-
-    const handleSave = () => {
-      saveNotes(notesItem.id, localNotes);
-    };
-
-    const handleClose = () => {
-      setShowNotesModal(false);
-      setNotesItem(null);
-    };
-
-    if (!notesItem) return null;
-
-    const formatDate = (dateString) => {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    };
-
-    return (
-      <div 
-        className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center p-4"
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 9999,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem'
-        }}
-        onClick={handleClose}
-      >
-        <div 
-          className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto"
-          style={{
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            padding: '1.5rem',
-            width: '100%',
-            maxWidth: '32rem',
-            maxHeight: '85vh',
-            overflowY: 'auto',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Notes for "{notesItem.title}"</h2>
-            <button
-              onClick={handleClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
-              style={{ fontSize: '1.5rem', lineHeight: 1 }}
-            >
-              ×
-            </button>
-          </div>
-          
-          {/* Existing Notes */}
-          <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
-            {localNotes.length === 0 ? (
-              <p className="text-gray-500 text-sm italic">No notes yet. Add one below!</p>
-            ) : (
-              localNotes.map((note, index) => (
-                <div 
-                  key={index} 
-                  className={`p-3 rounded-lg border ${
-                    note.isRecommendationNote 
-                      ? 'bg-blue-50 border-blue-200' 
-                      : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">
-                        {note.isRecommendationNote ? `${note.author} (recommendation)` : note.author}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {formatDate(note.date)}
-                      </span>
-                    </div>
-                    {!note.isRecommendationNote && (
-                      <button
-                        onClick={() => deleteNote(index)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                        title="Delete note"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-700">{note.text}</p>
-                </div>
-              ))
-            )}
-          </div>
-          
-          {/* Add New Note */}
-          <div className="border-t pt-4">
-            <label className="block text-sm font-medium mb-2">Add Your Note</label>
-            <textarea
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              placeholder="Your thoughts, ratings, or reminders about this show/movie..."
-              className="w-full border rounded-md px-3 py-2 text-sm resize-none"
-              rows="3"
-              maxLength="500"
-            />
-            <div className="flex justify-between items-center mt-2">
-              <span className="text-xs text-gray-500">{newNote.length}/500</span>
-              <button
-                onClick={addNote}
-                disabled={!newNote.trim()}
-                className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Add Note
-              </button>
-            </div>
-          </div>
-          
-          {/* Save/Cancel */}
-          <div className="flex gap-2 mt-4">
-            <button
-              onClick={handleSave}
-              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 flex items-center justify-center gap-2"
-            >
-              <Save className="h-4 w-4" />
-              Save Notes
-            </button>
-            <button
-              onClick={handleClose}
-              className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400"
-            >
-              Cancel
-            </button>
           </div>
         </div>
       </div>
@@ -592,105 +394,6 @@ const RecommendationPage = () => {
         )}
       </div>
 
-      {/* Note Modal for Recommendations */}
-      {showNoteModal && pendingRecommendation && (
-        <div 
-          className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center p-4"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 9999,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem'
-          }}
-        >
-          <div 
-            className="bg-white rounded-lg p-6 w-full max-w-md"
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '8px',
-              padding: '1.5rem',
-              width: '100%',
-              maxWidth: '28rem',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Add a Note</h2>
-              <button
-                onClick={() => {
-                  setShowNoteModal(false);
-                  setPendingRecommendation(null);
-                  setRecommendationNote('');
-                }}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
-              >
-                ×
-              </button>
-            </div>
-            
-            <div className="mb-4">
-              <div className="flex gap-3 mb-3">
-                <img
-                  src={pendingRecommendation.omdbItem.Poster !== 'N/A' ? pendingRecommendation.omdbItem.Poster : `https://via.placeholder.com/60x90/607D8B/white?text=${pendingRecommendation.omdbItem.Title.slice(0,3)}`}
-                  alt={pendingRecommendation.omdbItem.Title}
-                  className="w-12 h-18 object-cover rounded"
-                />
-                <div>
-                  <h3 className="font-semibold">{pendingRecommendation.omdbItem.Title}</h3>
-                  <p className="text-sm text-gray-600">{pendingRecommendation.omdbItem.Year}</p>
-                  <p className="text-sm text-gray-600 capitalize">{pendingRecommendation.omdbItem.Type}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">
-                Why are you recommending this? (Optional)
-              </label>
-              <textarea
-                value={recommendationNote}
-                onChange={(e) => setRecommendationNote(e.target.value)}
-                placeholder="This show is amazing because... or just leave blank!"
-                className="w-full border rounded-md px-3 py-2 text-sm resize-none"
-                rows="4"
-                maxLength="500"
-              />
-              <div className="text-right text-xs text-gray-500 mt-1">
-                {recommendationNote.length}/500
-              </div>
-            </div>
-            
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setShowNoteModal(false);
-                  setPendingRecommendation(null);
-                  setRecommendationNote('');
-                }}
-                className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmAddRecommendation}
-                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 flex items-center justify-center gap-2"
-              >
-                <MessageSquare className="h-4 w-4" />
-                Add Recommendation
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="fixed bottom-4 right-4">
         <a
           href="/"
@@ -728,7 +431,6 @@ const WatchCraftApp = () => {
 const MainWatchCraftApp = () => {
   const [watchlist, setWatchlist] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
-  const [sortedList, setSortedList] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -740,11 +442,6 @@ const MainWatchCraftApp = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
   const [showQRModal, setShowQRModal] = useState(false);
-  const [sortBy, setSortBy] = useState('alphabetical');
-  const [randomPick, setRandomPick] = useState(null);
-  const [showRandomModal, setShowRandomModal] = useState(false);
-  const [showNotesModal, setShowNotesModal] = useState(false);
-  const [notesItem, setNotesItem] = useState(null);
   
   const OMDB_API_KEY = 'cca39492';
   
@@ -840,10 +537,7 @@ const MainWatchCraftApp = () => {
           runtime: details.type === 'movie' ? details.runtime : null,
           currentSeason: 1,
           currentEpisode: 1,
-          viewingProgress: {},
-          dateAdded: new Date().toISOString(),
-          notes: [],
-          notes: []
+          viewingProgress: {}
         };
         
         const id = await addWatchlistItem(newItem);
@@ -899,74 +593,6 @@ const MainWatchCraftApp = () => {
     setEditingItem(null);
   };
 
-  // Sorting function
-  const sortItems = (items, sortBy) => {
-    const sorted = [...items];
-    
-    switch(sortBy) {
-      case 'alphabetical':
-        return sorted.sort((a, b) => a.title.localeCompare(b.title));
-      
-      case 'recently-added':
-        return sorted.sort((a, b) => {
-          const dateA = new Date(a.dateAdded || a.recommendationDate || 0);
-          const dateB = new Date(b.dateAdded || b.recommendationDate || 0);
-          return dateB - dateA; // Most recent first
-        });
-      
-      case 'last-watched':
-        return sorted.sort((a, b) => {
-          // Put "not started" items at the bottom
-          if (a.status === 'not started' && b.status !== 'not started') return 1;
-          if (b.status === 'not started' && a.status !== 'not started') return -1;
-          
-          const dateA = new Date(a.lastWatched || 0);
-          const dateB = new Date(b.lastWatched || 0);
-          return dateB - dateA; // Most recent first
-        });
-      
-      case 'last-aired':
-        return sorted.sort((a, b) => {
-          // For TV shows, we'll estimate last aired based on total episodes and release year
-          // For movies, we'll use release year
-          const getLastAired = (item) => {
-            if (item.type === 'movie') {
-              return new Date(item.releaseYear, 0, 1);
-            } else {
-              // Estimate last aired: assume weekly episodes starting from release year
-              const episodesPerYear = 20; // rough estimate
-              const yearsRunning = Math.ceil((item.totalEpisodes || 20) / episodesPerYear);
-              return new Date(item.releaseYear + yearsRunning, 0, 1);
-            }
-          };
-          
-          const dateA = getLastAired(a);
-          const dateB = getLastAired(b);
-          return dateB - dateA; // Most recent first
-        });
-      
-      case 'rating':
-        return sorted.sort((a, b) => (b.imdbRating || 0) - (a.imdbRating || 0));
-      
-      case 'progress':
-        return sorted.sort((a, b) => {
-          const getProgress = (item) => {
-            if (item.type === 'tv' && item.totalEpisodes) {
-              const totalWatched = (item.currentSeason - 1) * 20 + item.currentEpisode;
-              return Math.min((totalWatched / item.totalEpisodes) * 100, 100);
-            }
-            return item.status === 'completed' ? 100 : 0;
-          };
-          
-          return getProgress(b) - getProgress(a); // Highest progress first
-        });
-      
-      default:
-        return sorted;
-    }
-  };
-
-  // Apply filters and then sorting
   useEffect(() => {
     let filtered = watchlist.filter(item => {
       const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
@@ -997,42 +623,6 @@ const MainWatchCraftApp = () => {
     
     setFilteredList(filtered);
   }, [watchlist, searchTerm, filters]);
-
-  // Apply sorting to filtered list
-  useEffect(() => {
-    const sorted = sortItems(filteredList, sortBy);
-    setSortedList(sorted);
-  }, [filteredList, sortBy]);
-
-  // Random picker function
-  const pickRandomItem = () => {
-    if (sortedList.length === 0) {
-      alert('No items to pick from! Try adjusting your filters.');
-      return;
-    }
-    
-    const randomIndex = Math.floor(Math.random() * sortedList.length);
-    const randomItem = sortedList[randomIndex];
-    setRandomPick(randomItem);
-    setShowRandomModal(true);
-  };
-
-  // Notes functions
-  const openNotesModal = (item) => {
-    setNotesItem(item);
-    setShowNotesModal(true);
-  };
-
-  const saveNotes = async (itemId, newNotes) => {
-    try {
-      await handleUpdateItem(itemId, { notes: newNotes });
-      setShowNotesModal(false);
-      setNotesItem(null);
-    } catch (error) {
-      console.error('Error saving notes:', error);
-      setError('Failed to save notes. Please try again.');
-    }
-  };
 
   const getStatusStyle = (status) => {
     switch(status) {
@@ -1192,7 +782,7 @@ const MainWatchCraftApp = () => {
 
     const handleSave = async () => {
       try {
-        const updateData = {
+        await handleUpdateItem(editingItem.id, {
           status: localEditForm.status,
           recommendedBy: localEditForm.recommendedBy,
           mood: localEditForm.mood,
@@ -1200,14 +790,7 @@ const MainWatchCraftApp = () => {
           currentSeason: localEditForm.currentSeason,
           currentEpisode: localEditForm.currentEpisode,
           viewingProgress: localEditForm.viewingProgress
-        };
-
-        // Update last watched if status changed to something that indicates viewing
-        if (['currently watching', 'currently rewatching', 'completed'].includes(localEditForm.status)) {
-          updateData.lastWatched = new Date().toISOString();
-        }
-
-        await handleUpdateItem(editingItem.id, updateData);
+        });
         setEditingItem(null);
       } catch (error) {
         console.error('Error saving:', error);
@@ -1553,8 +1136,7 @@ const MainWatchCraftApp = () => {
           imdbId: null,
           currentSeason: 1,
           currentEpisode: 1,
-          viewingProgress: {},
-          dateAdded: new Date().toISOString()
+          viewingProgress: {}
         };
         
         const id = await addWatchlistItem(item);
@@ -1950,6 +1532,173 @@ const MainWatchCraftApp = () => {
     );
   };
 
+  const FilterPanel = () => {
+    // Extract unique values from watchlist for dropdowns
+    const getUniqueValues = (field) => {
+      const values = new Set();
+      watchlist.forEach(item => {
+        const itemValues = item[field] || [];
+        if (Array.isArray(itemValues)) {
+          itemValues.forEach(value => values.add(value));
+        }
+      });
+      return Array.from(values).sort();
+    };
+
+    const uniqueGenres = getUniqueValues('genre');
+    const uniqueMoods = getUniqueValues('mood');
+    const uniqueRecommenders = getUniqueValues('recommendedBy');
+
+    // Multi-select component
+    const MultiSelect = ({ label, options, value, onChange, placeholder }) => {
+      const toggleOption = (option) => {
+        if (value.includes(option)) {
+          onChange(value.filter(v => v !== option));
+        } else {
+          onChange([...value, option]);
+        }
+      };
+
+      const removeOption = (option) => {
+        onChange(value.filter(v => v !== option));
+      };
+
+      return (
+        <div>
+          <label className="block text-sm font-medium mb-1">{label}</label>
+          <div className="border rounded-md p-2 min-h-[40px] bg-white">
+            {/* Selected items display */}
+            {value.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {value.map(item => (
+                  <span
+                    key={item}
+                    className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs flex items-center gap-1"
+                  >
+                    {item}
+                    <button
+                      type="button"
+                      onClick={() => removeOption(item)}
+                      className="hover:bg-blue-200 rounded-full w-4 h-4 flex items-center justify-center"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            
+            {/* Dropdown */}
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  toggleOption(e.target.value);
+                  e.target.value = ''; // Reset select
+                }
+              }}
+              className="w-full text-sm bg-transparent border-none outline-none"
+              value=""
+            >
+              <option value="">{value.length === 0 ? placeholder : `Add more...`}</option>
+              {options
+                .filter(option => !value.includes(option))
+                .map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))
+              }
+            </select>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="bg-gray-50 p-4 rounded-lg mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Type</label>
+            <select
+              value={filters.type}
+              onChange={(e) => setFilters({...filters, type: e.target.value})}
+              className="w-full border rounded-md px-3 py-2 text-sm"
+            >
+              <option value="">All Types</option>
+              <option value="tv">TV Shows</option>
+              <option value="movie">Movies</option>
+            </select>
+          </div>
+
+          <MultiSelect
+            label="Genre"
+            options={uniqueGenres}
+            value={filters.genre}
+            onChange={(value) => setFilters({...filters, genre: value})}
+            placeholder="Select genres..."
+          />
+
+          <MultiSelect
+            label="Mood"
+            options={uniqueMoods}
+            value={filters.mood}
+            onChange={(value) => setFilters({...filters, mood: value})}
+            placeholder="Select moods..."
+          />
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({...filters, status: e.target.value})}
+              className="w-full border rounded-md px-3 py-2 text-sm"
+            >
+              <option value="">All Statuses</option>
+              <option value="not started">Not Started</option>
+              <option value="currently watching">Currently Watching</option>
+              <option value="currently rewatching">Currently Rewatching</option>
+              <option value="on hold">On Hold</option>
+              <option value="completed">Completed</option>
+              <option value="to rewatch">To Rewatch</option>
+            </select>
+          </div>
+
+          <MultiSelect
+            label="Recommended By"
+            options={uniqueRecommenders}
+            value={filters.recommendedBy}
+            onChange={(value) => setFilters({...filters, recommendedBy: value})}
+            placeholder="Select recommenders..."
+          />
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Max Length (minutes)</label>
+            <input
+              type="number"
+              value={filters.maxLength}
+              onChange={(e) => setFilters({...filters, maxLength: e.target.value})}
+              placeholder="30, 120..."
+              className="w-full border rounded-md px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+        
+        <button
+          onClick={() => setFilters({
+            genre: [],
+            mood: [],
+            status: '',
+            recommendedBy: [],
+            watchingWith: '',
+            maxLength: '',
+            type: ''
+          })}
+          className="mt-3 text-sm text-blue-600 hover:text-blue-800"
+        >
+          Clear all filters
+        </button>
+      </div>
+    );
+  };
+
   // QR Code Modal Component
   const QRCodeModal = () => {
     const recommendUrl = 'https://watchcraft-phi.vercel.app/recommend';
@@ -2044,185 +1793,6 @@ const MainWatchCraftApp = () => {
     );
   };
 
-  // Random Pick Modal Component
-  const RandomPickModal = () => {
-    if (!randomPick) return null;
-    
-    return (
-      <div 
-        className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center p-4"
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 9999,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem'
-        }}
-        onClick={() => setShowRandomModal(false)}
-      >
-        <div 
-          className="bg-white rounded-lg p-4 w-full max-w-md max-h-[85vh] overflow-y-auto"
-          style={{
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            padding: '1rem',
-            width: '100%',
-            maxWidth: '28rem',
-            maxHeight: '85vh',
-            overflowY: 'auto',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-xl font-bold">🎲 Random Pick!</h2>
-            <button
-              onClick={() => setShowRandomModal(false)}
-              className="text-gray-500 hover:text-gray-700 text-xl leading-none"
-              style={{ fontSize: '1.25rem', lineHeight: 1 }}
-            >
-              ×
-            </button>
-          </div>
-          
-          <div className="flex gap-3 mb-3">
-            <img
-              src={randomPick.poster}
-              alt={randomPick.title}
-              className="w-20 h-30 object-cover rounded-lg shadow-md flex-shrink-0"
-            />
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-bold mb-2 line-clamp-2">{randomPick.title}</h3>
-              <div className="space-y-1 text-sm text-gray-600">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span 
-                    className="px-2 py-1 rounded-full text-xs font-medium"
-                    style={getStatusStyle(randomPick.status)}
-                  >
-                    {randomPick.status.toUpperCase()}
-                  </span>
-                  <span className="capitalize">{randomPick.type}</span>
-                </div>
-                
-                {randomPick.genre && randomPick.genre.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Tag className="h-3 w-3 flex-shrink-0" />
-                    <span className="truncate">{randomPick.genre.slice(0, 3).join(', ')}</span>
-                  </div>
-                )}
-                
-                <div className="flex items-center gap-1">
-                  <Clock className="h-3 w-3 flex-shrink-0" />
-                  <span>
-                    {randomPick.type === 'movie' 
-                      ? formatRuntime(randomPick.runtime)
-                      : `${randomPick.episodeLength}min episodes`
-                    }
-                  </span>
-                </div>
-                
-                {randomPick.imdbRating && (
-                  <div className="flex items-center gap-1">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 flex-shrink-0" />
-                    <span>{randomPick.imdbRating}/10</span>
-                  </div>
-                )}
-                
-                {randomPick.type === 'tv' && (
-                  <div className="text-sm">
-                    Progress: S{randomPick.currentSeason || 1}E{randomPick.currentEpisode || 1}
-                    {getMainProgress(randomPick) && <span> ({getMainProgress(randomPick)}%)</span>}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {randomPick.recommendedBy && randomPick.recommendedBy.length > 0 && (
-            <div className="mb-3 text-sm text-gray-600">
-              <Users className="h-3 w-3 inline mr-1" />
-              Recommended by {randomPick.recommendedBy.slice(0, 2).join(', ')}
-            </div>
-          )}
-          
-          {randomPick.notes && randomPick.notes.length > 0 && (
-            <div className="mb-3">
-              <h4 className="text-sm font-medium mb-2">Notes:</h4>
-              <div className="space-y-2 max-h-24 overflow-y-auto">
-                {randomPick.notes.slice(0, 2).map((note, index) => (
-                  <div 
-                    key={index}
-                    className={`p-2 rounded text-xs ${
-                      note.isRecommendationNote 
-                        ? 'bg-blue-50 border border-blue-200' 
-                        : 'bg-gray-50 border border-gray-200'
-                    }`}
-                  >
-                    <div className="font-medium mb-1">
-                      {note.isRecommendationNote ? `${note.author} says:` : `${note.author}:`}
-                    </div>
-                    <div className="text-gray-700 line-clamp-2">{note.text}</div>
-                  </div>
-                ))}
-                {randomPick.notes.length > 2 && (
-                  <div className="text-xs text-gray-500 text-center">
-                    +{randomPick.notes.length - 2} more notes
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          
-          {randomPick.plot && (
-            <div className="mb-3 p-2 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-700 line-clamp-3">{randomPick.plot}</p>
-            </div>
-          )}
-          
-          {randomPick.mood && randomPick.mood.length > 0 && (
-            <div className="mb-3">
-              <div className="flex flex-wrap gap-1">
-                {randomPick.mood.slice(0, 4).map(mood => (
-                  <span key={mood} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                    {mood}
-                  </span>
-                ))}
-                {randomPick.mood.length > 4 && (
-                  <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
-                    +{randomPick.mood.length - 4}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-          
-          <div className="flex gap-2">
-            <button
-              onClick={pickRandomItem}
-              className="flex-1 bg-purple-600 text-white py-2 px-3 rounded-md hover:bg-purple-700 flex items-center justify-center gap-2 text-sm"
-            >
-              <Shuffle className="h-4 w-4" />
-              Pick Another
-            </button>
-            <button
-              onClick={() => setShowRandomModal(false)}
-              className="flex-1 bg-green-600 text-white py-2 px-3 rounded-md hover:bg-green-700 flex items-center justify-center gap-2 text-sm"
-            >
-              <Play className="h-4 w-4" />
-              Let's Watch This!
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -2289,31 +1859,6 @@ const MainWatchCraftApp = () => {
             
             <div className="flex gap-2">
               <button
-                onClick={pickRandomItem}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
-                title="Pick a random show/movie from your filtered list"
-              >
-                <Shuffle className="h-4 w-4" />
-                Random
-              </button>
-              
-              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-md px-3 py-2">
-                <ArrowUpDown className="h-4 w-4 text-gray-400" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="border-none outline-none bg-transparent text-sm"
-                >
-                  <option value="alphabetical">A-Z</option>
-                  <option value="recently-added">Recently Added</option>
-                  <option value="last-watched">Last Watched</option>
-                  <option value="last-aired">Last Aired</option>
-                  <option value="rating">Rating</option>
-                  <option value="progress">Progress</option>
-                </select>
-              </div>
-              
-              <button
                 onClick={() => setShowQRModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
                 title="Hi :)"
@@ -2359,13 +1904,13 @@ const MainWatchCraftApp = () => {
           
           {/* Item Count */}
           <p className="text-gray-600">
-            Showing {sortedList.length} of {watchlist.length} items
+            Showing {filteredList.length} of {watchlist.length} items
           </p>
         </div>
       </div>
 
       {/* Main Content - with top padding to account for fixed toolbar */}
-      <div style={{ paddingTop: '240px' }}>
+      <div style={{ paddingTop: '220px' }}>
         <div className="max-w-7xl mx-auto p-4">
           <div 
             className={`grid gap-3`}
@@ -2377,7 +1922,7 @@ const MainWatchCraftApp = () => {
               alignItems: 'stretch'
             }}
           >
-            {sortedList.map(item => (
+            {filteredList.map(item => (
               <div 
                 key={item.id} 
                 className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
@@ -2411,15 +1956,6 @@ const MainWatchCraftApp = () => {
                     </span>
                   </div>
                   <div className={`absolute top-1 left-1 flex gap-1 ${viewMode === 'compact' ? 'top-0.5 left-0.5' : ''}`}>
-                    <button
-                      onClick={() => openNotesModal(item)}
-                      className={`bg-yellow-600 text-white rounded-full hover:bg-yellow-700 transition-colors ${
-                        viewMode === 'compact' ? 'p-0.5' : 'p-1'
-                      }`}
-                      title="View/edit notes"
-                    >
-                      <MessageSquare className={`${viewMode === 'compact' ? 'h-2.5 w-2.5' : 'h-3 w-3'}`} />
-                    </button>
                     <button
                       onClick={() => startEditing(item)}
                       className={`bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors ${
@@ -2517,15 +2053,6 @@ const MainWatchCraftApp = () => {
                           <span className="truncate">Rec. by {item.recommendedBy.slice(0, 2).join(', ')}</span>
                         </div>
                       )}
-                      
-                      {item.notes && item.notes.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <MessageSquare className="h-3 w-3" />
-                          <span className="text-xs">
-                            {item.notes.filter(note => note.isRecommendationNote).length > 0 ? 'Has recommendation notes' : 'Has notes'}
-                          </span>
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -2555,7 +2082,7 @@ const MainWatchCraftApp = () => {
             ))}
           </div>
 
-          {sortedList.length === 0 && (
+          {filteredList.length === 0 && (
             <div className="text-center py-12">
               <Play className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">No items match your search criteria</p>
@@ -2569,179 +2096,9 @@ const MainWatchCraftApp = () => {
       {showOMDBSearch && <OMDBSearchModal />}
       {showFilters && <FilterModal />}
       {showQRModal && <QRCodeModal />}
-      {showRandomModal && <RandomPickModal />}
-      {showNotesModal && <NotesModal />}
       {editingItem && <EditingModal item={watchlist.find(item => item.id === editingItem.id)} />}
     </div>
   );
-
-  // Notes Modal Component - defined inside MainWatchCraftApp
-  function NotesModal() {
-    const [localNotes, setLocalNotes] = useState(notesItem?.notes || []);
-    const [newNote, setNewNote] = useState('');
-
-    const addNote = () => {
-      if (newNote.trim()) {
-        const note = {
-          text: newNote.trim(),
-          author: 'You', // Since this is for the main user's personal notes
-          date: new Date().toISOString(),
-          isRecommendationNote: false
-        };
-        setLocalNotes([...localNotes, note]);
-        setNewNote('');
-      }
-    };
-
-    const deleteNote = (indexToDelete) => {
-      setLocalNotes(localNotes.filter((_, index) => index !== indexToDelete));
-    };
-
-    const handleSave = () => {
-      saveNotes(notesItem.id, localNotes);
-    };
-
-    const handleClose = () => {
-      setShowNotesModal(false);
-      setNotesItem(null);
-    };
-
-    if (!notesItem) return null;
-
-    const formatDate = (dateString) => {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    };
-
-    return (
-      <div 
-        className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center p-4"
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 9999,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem'
-        }}
-        onClick={handleClose}
-      >
-        <div 
-          className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto"
-          style={{
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            padding: '1.5rem',
-            width: '100%',
-            maxWidth: '32rem',
-            maxHeight: '85vh',
-            overflowY: 'auto',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Notes for "{notesItem.title}"</h2>
-            <button
-              onClick={handleClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
-              style={{ fontSize: '1.5rem', lineHeight: 1 }}
-            >
-              ×
-            </button>
-          </div>
-          
-          {/* Existing Notes */}
-          <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
-            {localNotes.length === 0 ? (
-              <p className="text-gray-500 text-sm italic">No notes yet. Add one below!</p>
-            ) : (
-              localNotes.map((note, index) => (
-                <div 
-                  key={index} 
-                  className={`p-3 rounded-lg border ${
-                    note.isRecommendationNote 
-                      ? 'bg-blue-50 border-blue-200' 
-                      : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">
-                        {note.isRecommendationNote ? `${note.author} (recommendation)` : note.author}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {formatDate(note.date)}
-                      </span>
-                    </div>
-                    {!note.isRecommendationNote && (
-                      <button
-                        onClick={() => deleteNote(index)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                        title="Delete note"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-700">{note.text}</p>
-                </div>
-              ))
-            )}
-          </div>
-          
-          {/* Add New Note */}
-          <div className="border-t pt-4">
-            <label className="block text-sm font-medium mb-2">Add Your Note</label>
-            <textarea
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              placeholder="Your thoughts, ratings, or reminders about this show/movie..."
-              className="w-full border rounded-md px-3 py-2 text-sm resize-none"
-              rows="3"
-              maxLength="500"
-            />
-            <div className="flex justify-between items-center mt-2">
-              <span className="text-xs text-gray-500">{newNote.length}/500</span>
-              <button
-                onClick={addNote}
-                disabled={!newNote.trim()}
-                className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Add Note
-              </button>
-            </div>
-          </div>
-          
-          {/* Save/Cancel */}
-          <div className="flex gap-2 mt-4">
-            <button
-              onClick={handleSave}
-              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 flex items-center justify-center gap-2"
-            >
-              <Save className="h-4 w-4" />
-              Save Notes
-            </button>
-            <button
-              onClick={handleClose}
-              className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-};
 };
 
 export default WatchCraftApp;
