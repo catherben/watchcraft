@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, Play, Users, Star, Clock, Tag, Download, Loader, Trash2, Edit3, Save, X, Grid, List, UserPlus, Share2, QrCode, Send, UserCircle } from 'lucide-react';
+import { Search, Plus, Filter, Play, Users, Star, Clock, Tag, Download, Loader, Trash2, Edit3, Save, X, Grid, List, UserPlus, Share2, QrCode, Send, UserCircle, ArrowUpDown, Shuffle } from 'lucide-react';
 import { 
   getAllWatchlistItems, 
   addWatchlistItem, 
@@ -135,7 +135,8 @@ const RecommendationPage = () => {
           currentEpisode: 1,
           viewingProgress: {},
           addedViaRecommendation: true,
-          recommendationDate: new Date().toISOString()
+          recommendationDate: new Date().toISOString(),
+          dateAdded: new Date().toISOString()
         };
         
         await addWatchlistItem(newItem);
@@ -431,6 +432,7 @@ const WatchCraftApp = () => {
 const MainWatchCraftApp = () => {
   const [watchlist, setWatchlist] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
+  const [sortedList, setSortedList] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -442,6 +444,9 @@ const MainWatchCraftApp = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [viewMode, setViewMode] = useState('grid');
   const [showQRModal, setShowQRModal] = useState(false);
+  const [sortBy, setSortBy] = useState('alphabetical');
+  const [randomPick, setRandomPick] = useState(null);
+  const [showRandomModal, setShowRandomModal] = useState(false);
   
   const OMDB_API_KEY = 'cca39492';
   
@@ -537,7 +542,8 @@ const MainWatchCraftApp = () => {
           runtime: details.type === 'movie' ? details.runtime : null,
           currentSeason: 1,
           currentEpisode: 1,
-          viewingProgress: {}
+          viewingProgress: {},
+          dateAdded: new Date().toISOString()
         };
         
         const id = await addWatchlistItem(newItem);
@@ -593,6 +599,74 @@ const MainWatchCraftApp = () => {
     setEditingItem(null);
   };
 
+  // Sorting function
+  const sortItems = (items, sortBy) => {
+    const sorted = [...items];
+    
+    switch(sortBy) {
+      case 'alphabetical':
+        return sorted.sort((a, b) => a.title.localeCompare(b.title));
+      
+      case 'recently-added':
+        return sorted.sort((a, b) => {
+          const dateA = new Date(a.dateAdded || a.recommendationDate || 0);
+          const dateB = new Date(b.dateAdded || b.recommendationDate || 0);
+          return dateB - dateA; // Most recent first
+        });
+      
+      case 'last-watched':
+        return sorted.sort((a, b) => {
+          // Put "not started" items at the bottom
+          if (a.status === 'not started' && b.status !== 'not started') return 1;
+          if (b.status === 'not started' && a.status !== 'not started') return -1;
+          
+          const dateA = new Date(a.lastWatched || 0);
+          const dateB = new Date(b.lastWatched || 0);
+          return dateB - dateA; // Most recent first
+        });
+      
+      case 'last-aired':
+        return sorted.sort((a, b) => {
+          // For TV shows, we'll estimate last aired based on total episodes and release year
+          // For movies, we'll use release year
+          const getLastAired = (item) => {
+            if (item.type === 'movie') {
+              return new Date(item.releaseYear, 0, 1);
+            } else {
+              // Estimate last aired: assume weekly episodes starting from release year
+              const episodesPerYear = 20; // rough estimate
+              const yearsRunning = Math.ceil((item.totalEpisodes || 20) / episodesPerYear);
+              return new Date(item.releaseYear + yearsRunning, 0, 1);
+            }
+          };
+          
+          const dateA = getLastAired(a);
+          const dateB = getLastAired(b);
+          return dateB - dateA; // Most recent first
+        });
+      
+      case 'rating':
+        return sorted.sort((a, b) => (b.imdbRating || 0) - (a.imdbRating || 0));
+      
+      case 'progress':
+        return sorted.sort((a, b) => {
+          const getProgress = (item) => {
+            if (item.type === 'tv' && item.totalEpisodes) {
+              const totalWatched = (item.currentSeason - 1) * 20 + item.currentEpisode;
+              return Math.min((totalWatched / item.totalEpisodes) * 100, 100);
+            }
+            return item.status === 'completed' ? 100 : 0;
+          };
+          
+          return getProgress(b) - getProgress(a); // Highest progress first
+        });
+      
+      default:
+        return sorted;
+    }
+  };
+
+  // Apply filters and then sorting
   useEffect(() => {
     let filtered = watchlist.filter(item => {
       const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
@@ -623,6 +697,25 @@ const MainWatchCraftApp = () => {
     
     setFilteredList(filtered);
   }, [watchlist, searchTerm, filters]);
+
+  // Apply sorting to filtered list
+  useEffect(() => {
+    const sorted = sortItems(filteredList, sortBy);
+    setSortedList(sorted);
+  }, [filteredList, sortBy]);
+
+  // Random picker function
+  const pickRandomItem = () => {
+    if (sortedList.length === 0) {
+      alert('No items to pick from! Try adjusting your filters.');
+      return;
+    }
+    
+    const randomIndex = Math.floor(Math.random() * sortedList.length);
+    const randomItem = sortedList[randomIndex];
+    setRandomPick(randomItem);
+    setShowRandomModal(true);
+  };
 
   const getStatusStyle = (status) => {
     switch(status) {
@@ -782,7 +875,7 @@ const MainWatchCraftApp = () => {
 
     const handleSave = async () => {
       try {
-        await handleUpdateItem(editingItem.id, {
+        const updateData = {
           status: localEditForm.status,
           recommendedBy: localEditForm.recommendedBy,
           mood: localEditForm.mood,
@@ -790,7 +883,14 @@ const MainWatchCraftApp = () => {
           currentSeason: localEditForm.currentSeason,
           currentEpisode: localEditForm.currentEpisode,
           viewingProgress: localEditForm.viewingProgress
-        });
+        };
+
+        // Update last watched if status changed to something that indicates viewing
+        if (['currently watching', 'currently rewatching', 'completed'].includes(localEditForm.status)) {
+          updateData.lastWatched = new Date().toISOString();
+        }
+
+        await handleUpdateItem(editingItem.id, updateData);
         setEditingItem(null);
       } catch (error) {
         console.error('Error saving:', error);
@@ -1136,7 +1236,8 @@ const MainWatchCraftApp = () => {
           imdbId: null,
           currentSeason: 1,
           currentEpisode: 1,
-          viewingProgress: {}
+          viewingProgress: {},
+          dateAdded: new Date().toISOString()
         };
         
         const id = await addWatchlistItem(item);
@@ -1532,173 +1633,6 @@ const MainWatchCraftApp = () => {
     );
   };
 
-  const FilterPanel = () => {
-    // Extract unique values from watchlist for dropdowns
-    const getUniqueValues = (field) => {
-      const values = new Set();
-      watchlist.forEach(item => {
-        const itemValues = item[field] || [];
-        if (Array.isArray(itemValues)) {
-          itemValues.forEach(value => values.add(value));
-        }
-      });
-      return Array.from(values).sort();
-    };
-
-    const uniqueGenres = getUniqueValues('genre');
-    const uniqueMoods = getUniqueValues('mood');
-    const uniqueRecommenders = getUniqueValues('recommendedBy');
-
-    // Multi-select component
-    const MultiSelect = ({ label, options, value, onChange, placeholder }) => {
-      const toggleOption = (option) => {
-        if (value.includes(option)) {
-          onChange(value.filter(v => v !== option));
-        } else {
-          onChange([...value, option]);
-        }
-      };
-
-      const removeOption = (option) => {
-        onChange(value.filter(v => v !== option));
-      };
-
-      return (
-        <div>
-          <label className="block text-sm font-medium mb-1">{label}</label>
-          <div className="border rounded-md p-2 min-h-[40px] bg-white">
-            {/* Selected items display */}
-            {value.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-2">
-                {value.map(item => (
-                  <span
-                    key={item}
-                    className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs flex items-center gap-1"
-                  >
-                    {item}
-                    <button
-                      type="button"
-                      onClick={() => removeOption(item)}
-                      className="hover:bg-blue-200 rounded-full w-4 h-4 flex items-center justify-center"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            
-            {/* Dropdown */}
-            <select
-              onChange={(e) => {
-                if (e.target.value) {
-                  toggleOption(e.target.value);
-                  e.target.value = ''; // Reset select
-                }
-              }}
-              className="w-full text-sm bg-transparent border-none outline-none"
-              value=""
-            >
-              <option value="">{value.length === 0 ? placeholder : `Add more...`}</option>
-              {options
-                .filter(option => !value.includes(option))
-                .map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))
-              }
-            </select>
-          </div>
-        </div>
-      );
-    };
-
-    return (
-      <div className="bg-gray-50 p-4 rounded-lg mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Type</label>
-            <select
-              value={filters.type}
-              onChange={(e) => setFilters({...filters, type: e.target.value})}
-              className="w-full border rounded-md px-3 py-2 text-sm"
-            >
-              <option value="">All Types</option>
-              <option value="tv">TV Shows</option>
-              <option value="movie">Movies</option>
-            </select>
-          </div>
-
-          <MultiSelect
-            label="Genre"
-            options={uniqueGenres}
-            value={filters.genre}
-            onChange={(value) => setFilters({...filters, genre: value})}
-            placeholder="Select genres..."
-          />
-
-          <MultiSelect
-            label="Mood"
-            options={uniqueMoods}
-            value={filters.mood}
-            onChange={(value) => setFilters({...filters, mood: value})}
-            placeholder="Select moods..."
-          />
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Status</label>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({...filters, status: e.target.value})}
-              className="w-full border rounded-md px-3 py-2 text-sm"
-            >
-              <option value="">All Statuses</option>
-              <option value="not started">Not Started</option>
-              <option value="currently watching">Currently Watching</option>
-              <option value="currently rewatching">Currently Rewatching</option>
-              <option value="on hold">On Hold</option>
-              <option value="completed">Completed</option>
-              <option value="to rewatch">To Rewatch</option>
-            </select>
-          </div>
-
-          <MultiSelect
-            label="Recommended By"
-            options={uniqueRecommenders}
-            value={filters.recommendedBy}
-            onChange={(value) => setFilters({...filters, recommendedBy: value})}
-            placeholder="Select recommenders..."
-          />
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Max Length (minutes)</label>
-            <input
-              type="number"
-              value={filters.maxLength}
-              onChange={(e) => setFilters({...filters, maxLength: e.target.value})}
-              placeholder="30, 120..."
-              className="w-full border rounded-md px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
-        
-        <button
-          onClick={() => setFilters({
-            genre: [],
-            mood: [],
-            status: '',
-            recommendedBy: [],
-            watchingWith: '',
-            maxLength: '',
-            type: ''
-          })}
-          className="mt-3 text-sm text-blue-600 hover:text-blue-800"
-        >
-          Clear all filters
-        </button>
-      </div>
-    );
-  };
-
   // QR Code Modal Component
   const QRCodeModal = () => {
     const recommendUrl = 'https://watchcraft-phi.vercel.app/recommend';
@@ -1793,6 +1727,157 @@ const MainWatchCraftApp = () => {
     );
   };
 
+  // Random Pick Modal Component
+  const RandomPickModal = () => {
+    if (!randomPick) return null;
+    
+    return (
+      <div 
+        className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center p-4"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem'
+        }}
+        onClick={() => setShowRandomModal(false)}
+      >
+        <div 
+          className="bg-white rounded-lg p-4 w-full max-w-md max-h-[85vh] overflow-y-auto"
+          style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '1rem',
+            width: '100%',
+            maxWidth: '28rem',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-xl font-bold">🎲 Random Pick!</h2>
+            <button
+              onClick={() => setShowRandomModal(false)}
+              className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+              style={{ fontSize: '1.25rem', lineHeight: 1 }}
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className="flex gap-3 mb-3">
+            <img
+              src={randomPick.poster}
+              alt={randomPick.title}
+              className="w-20 h-30 object-cover rounded-lg shadow-md flex-shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-bold mb-2 line-clamp-2">{randomPick.title}</h3>
+              <div className="space-y-1 text-sm text-gray-600">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span 
+                    className="px-2 py-1 rounded-full text-xs font-medium"
+                    style={getStatusStyle(randomPick.status)}
+                  >
+                    {randomPick.status.toUpperCase()}
+                  </span>
+                  <span className="capitalize">{randomPick.type}</span>
+                </div>
+                
+                {randomPick.genre && randomPick.genre.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Tag className="h-3 w-3 flex-shrink-0" />
+                    <span className="truncate">{randomPick.genre.slice(0, 3).join(', ')}</span>
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3 flex-shrink-0" />
+                  <span>
+                    {randomPick.type === 'movie' 
+                      ? formatRuntime(randomPick.runtime)
+                      : `${randomPick.episodeLength}min episodes`
+                    }
+                  </span>
+                </div>
+                
+                {randomPick.imdbRating && (
+                  <div className="flex items-center gap-1">
+                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 flex-shrink-0" />
+                    <span>{randomPick.imdbRating}/10</span>
+                  </div>
+                )}
+                
+                {randomPick.type === 'tv' && (
+                  <div className="text-sm">
+                    Progress: S{randomPick.currentSeason || 1}E{randomPick.currentEpisode || 1}
+                    {getMainProgress(randomPick) && <span> ({getMainProgress(randomPick)}%)</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {randomPick.recommendedBy && randomPick.recommendedBy.length > 0 && (
+            <div className="mb-3 text-sm text-gray-600">
+              <Users className="h-3 w-3 inline mr-1" />
+              Recommended by {randomPick.recommendedBy.slice(0, 2).join(', ')}
+            </div>
+          )}
+          
+          {randomPick.plot && (
+            <div className="mb-3 p-2 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-700 line-clamp-3">{randomPick.plot}</p>
+            </div>
+          )}
+          
+          {randomPick.mood && randomPick.mood.length > 0 && (
+            <div className="mb-3">
+              <div className="flex flex-wrap gap-1">
+                {randomPick.mood.slice(0, 4).map(mood => (
+                  <span key={mood} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                    {mood}
+                  </span>
+                ))}
+                {randomPick.mood.length > 4 && (
+                  <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
+                    +{randomPick.mood.length - 4}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          
+          <div className="flex gap-2">
+            <button
+              onClick={pickRandomItem}
+              className="flex-1 bg-purple-600 text-white py-2 px-3 rounded-md hover:bg-purple-700 flex items-center justify-center gap-2 text-sm"
+            >
+              <Shuffle className="h-4 w-4" />
+              Pick Another
+            </button>
+            <button
+              onClick={() => setShowRandomModal(false)}
+              className="flex-1 bg-green-600 text-white py-2 px-3 rounded-md hover:bg-green-700 flex items-center justify-center gap-2 text-sm"
+            >
+              <Play className="h-4 w-4" />
+              Let's Watch This!
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -1859,6 +1944,31 @@ const MainWatchCraftApp = () => {
             
             <div className="flex gap-2">
               <button
+                onClick={pickRandomItem}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
+                title="Pick a random show/movie from your filtered list"
+              >
+                <Shuffle className="h-4 w-4" />
+                Random
+              </button>
+              
+              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-md px-3 py-2">
+                <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="border-none outline-none bg-transparent text-sm"
+                >
+                  <option value="alphabetical">A-Z</option>
+                  <option value="recently-added">Recently Added</option>
+                  <option value="last-watched">Last Watched</option>
+                  <option value="last-aired">Last Aired</option>
+                  <option value="rating">Rating</option>
+                  <option value="progress">Progress</option>
+                </select>
+              </div>
+              
+              <button
                 onClick={() => setShowQRModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
                 title="Hi :)"
@@ -1904,13 +2014,13 @@ const MainWatchCraftApp = () => {
           
           {/* Item Count */}
           <p className="text-gray-600">
-            Showing {filteredList.length} of {watchlist.length} items
+            Showing {sortedList.length} of {watchlist.length} items
           </p>
         </div>
       </div>
 
       {/* Main Content - with top padding to account for fixed toolbar */}
-      <div style={{ paddingTop: '220px' }}>
+      <div style={{ paddingTop: '240px' }}>
         <div className="max-w-7xl mx-auto p-4">
           <div 
             className={`grid gap-3`}
@@ -1922,7 +2032,7 @@ const MainWatchCraftApp = () => {
               alignItems: 'stretch'
             }}
           >
-            {filteredList.map(item => (
+            {sortedList.map(item => (
               <div 
                 key={item.id} 
                 className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
@@ -2082,7 +2192,7 @@ const MainWatchCraftApp = () => {
             ))}
           </div>
 
-          {filteredList.length === 0 && (
+          {sortedList.length === 0 && (
             <div className="text-center py-12">
               <Play className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">No items match your search criteria</p>
@@ -2096,6 +2206,7 @@ const MainWatchCraftApp = () => {
       {showOMDBSearch && <OMDBSearchModal />}
       {showFilters && <FilterModal />}
       {showQRModal && <QRCodeModal />}
+      {showRandomModal && <RandomPickModal />}
       {editingItem && <EditingModal item={watchlist.find(item => item.id === editingItem.id)} />}
     </div>
   );
