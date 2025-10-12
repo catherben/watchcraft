@@ -450,6 +450,72 @@ const MainWatchCraftApp = () => {
   
   const OMDB_API_KEY = 'cca39492';
   
+  // Predefined options for dropdowns
+  const MOOD_OPTIONS = [
+    'Happy', 'Sad', 'Exciting', 'Relaxing', 'Funny', 'Serious', 
+    'Romantic', 'Thrilling', 'Mysterious', 'Dark', 'Lighthearted',
+    'Thought-provoking', 'Inspiring', 'Suspenseful', 'Nostalgic',
+    'Adventurous', 'Emotional', 'Intense', 'Chill', 'Epic'
+  ];
+
+  const GENRE_OPTIONS = [
+    'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary',
+    'Drama', 'Fantasy', 'Horror', 'Mystery', 'Romance', 'Science Fiction',
+    'Thriller', 'Western', 'Biography', 'Family', 'History', 'Music',
+    'Musical', 'Sport', 'War', 'Superhero', 'Noir', 'Satire'
+  ];
+
+  // UPDATED: Custom recommender options with your specific names
+  const [customRecommenders, setCustomRecommenders] = useState(() => {
+    const saved = localStorage.getItem('customRecommenders');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [customMoods, setCustomMoods] = useState(() => {
+    const saved = localStorage.getItem('customMoods');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [customGenres, setCustomGenres] = useState(() => {
+    const saved = localStorage.getItem('customGenres');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // UPDATED: Combined predefined and custom options
+  const RECOMMENDER_OPTIONS = [
+    'Dad', 'Mom', 'Christine', 'Rachel', 'Déa', 'Emily', 'Mal', 
+    'Aunt Melanie', 'Chris', 'SocialMedia', 'Maria',
+    ...customRecommenders
+  ];
+
+  const ALL_MOOD_OPTIONS = [...MOOD_OPTIONS, ...customMoods];
+  const ALL_GENRE_OPTIONS = [...GENRE_OPTIONS, ...customGenres];
+
+  // Function to add custom values and save to localStorage
+  const addCustomRecommender = (value) => {
+    if (value && !customRecommenders.includes(value)) {
+      const updated = [...customRecommenders, value];
+      setCustomRecommenders(updated);
+      localStorage.setItem('customRecommenders', JSON.stringify(updated));
+    }
+  };
+
+  const addCustomMood = (value) => {
+    if (value && !customMoods.includes(value)) {
+      const updated = [...customMoods, value];
+      setCustomMoods(updated);
+      localStorage.setItem('customMoods', JSON.stringify(updated));
+    }
+  };
+
+  const addCustomGenre = (value) => {
+    if (value && !customGenres.includes(value)) {
+      const updated = [...customGenres, value];
+      setCustomGenres(updated);
+      localStorage.setItem('customGenres', JSON.stringify(updated));
+    }
+  };
+
   const [filters, setFilters] = useState({
     genre: [],
     mood: [],
@@ -525,6 +591,7 @@ const MainWatchCraftApp = () => {
     }
   };
 
+  // MODIFIED: This function now opens the edit modal after adding the item
   const addFromOMDB = async (omdbItem) => {
     try {
       const details = await getOMDBDetails(omdbItem.imdbID);
@@ -551,6 +618,18 @@ const MainWatchCraftApp = () => {
         setWatchlist([...watchlist, itemWithId]);
         setShowOMDBSearch(false);
         setOmdbResults([]);
+        
+        // NEW: Open the edit modal for the newly added item
+        setEditingItem({
+          id: id,
+          status: newItem.status,
+          recommendedBy: newItem.recommendedBy,
+          mood: newItem.mood,
+          watchingWith: newItem.watchingWith,
+          currentSeason: newItem.currentSeason,
+          currentEpisode: newItem.currentEpisode,
+          viewingProgress: newItem.viewingProgress
+        });
       }
     } catch (error) {
       console.error('Error adding item from OMDB:', error);
@@ -778,50 +857,114 @@ const MainWatchCraftApp = () => {
     return null;
   };
 
-  const TagInput = ({ value = [], onChange, placeholder }) => {
-    const [inputValue, setInputValue] = useState('');
-    
-    const handleKeyPress = (e) => {
-      if (e.key === 'Enter' || e.key === ',') {
-        e.preventDefault();
-        if (inputValue.trim()) {
-          const newValue = [...value, inputValue.trim()];
-          onChange(newValue);
-          setInputValue('');
-        }
+  // NEW: MultiSelectDropdown component for dropdown lists with multi-select capability
+  const MultiSelectDropdown = ({ label, options, value = [], onChange, placeholder, onAddCustom }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [customValue, setCustomValue] = useState('');
+
+    const toggleOption = (option) => {
+      if (value.includes(option)) {
+        onChange(value.filter(v => v !== option));
+      } else {
+        onChange([...value, option]);
       }
     };
 
-    const removeTag = (indexToRemove) => {
-      const newValue = value.filter((_, index) => index !== indexToRemove);
-      onChange(newValue);
+    const removeOption = (option) => {
+      onChange(value.filter(v => v !== option));
+    };
+
+    const addCustomValue = () => {
+      if (customValue.trim() && !value.includes(customValue.trim())) {
+        onChange([...value, customValue.trim()]);
+        if (onAddCustom) {
+          onAddCustom(customValue.trim());
+        }
+        setCustomValue('');
+      }
+    };
+
+    const handleKeyPress = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addCustomValue();
+      }
     };
 
     return (
-      <div className="border rounded-md p-2 min-h-[40px] flex flex-wrap gap-1 items-center">
-        {value.map((tag, index) => (
-          <span
-            key={index}
-            className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs flex items-center gap-1"
+      <div className="relative">
+        <label className="block text-sm font-medium mb-1">{label}</label>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full border rounded-md px-3 py-2 text-left bg-white flex items-center justify-between"
           >
-            {tag}
-            <button
-              type="button"
-              onClick={() => removeTag(index)}
-              className="hover:bg-blue-200 rounded-full w-4 h-4 flex items-center justify-center"
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder={value.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[100px] outline-none text-sm"
-        />
+            <span className="truncate">
+              {value.length === 0 ? placeholder : `${value.length} selected`}
+            </span>
+            <span className="text-gray-400">▼</span>
+          </button>
+          
+          {isOpen && (
+            <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+              {/* Custom input for adding new values */}
+              <div className="p-2 border-b">
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    value={customValue}
+                    onChange={(e) => setCustomValue(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Add custom..."
+                    className="flex-1 border rounded px-2 py-1 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomValue}
+                    className="bg-blue-600 text-white px-2 py-1 rounded text-sm"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+              
+              {/* Options list */}
+              {options.map(option => (
+                <label key={option} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={value.includes(option)}
+                    onChange={() => toggleOption(option)}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">{option}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* Selected tags display */}
+        {value.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {value.map(item => (
+              <span
+                key={item}
+                className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs flex items-center gap-1"
+              >
+                {item}
+                <button
+                  type="button"
+                  onClick={() => removeOption(item)}
+                  className="hover:bg-blue-200 rounded-full w-4 h-4 flex items-center justify-center"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -839,16 +982,45 @@ const MainWatchCraftApp = () => {
 
     const [newPartner, setNewPartner] = useState('');
 
-    const addViewingPartner = () => {
-      if (newPartner.trim()) {
-        const newProgress = {
-          ...localEditForm.viewingProgress,
-          [newPartner]: { season: 1, episode: 1 }
-        };
-        setLocalEditForm({
-          ...localEditForm,
-          viewingProgress: newProgress
-        });
+    // NEW: Function to sync watchingWith with viewingProgress
+    const syncWatchingWithProgress = (watchingWith, currentProgress = {}) => {
+      const newProgress = { ...currentProgress };
+      
+      // Add new partners to progress tracking with default values
+      watchingWith.forEach(partner => {
+        if (!newProgress[partner]) {
+          newProgress[partner] = { 
+            season: localEditForm.currentSeason || 1, 
+            episode: localEditForm.currentEpisode || 1 
+          };
+        }
+      });
+      
+      // Remove partners from progress tracking if they're no longer in watchingWith
+      Object.keys(newProgress).forEach(partner => {
+        if (!watchingWith.includes(partner)) {
+          delete newProgress[partner];
+        }
+      });
+      
+      return newProgress;
+    };
+
+    // NEW: Handle watchingWith changes with automatic progress sync
+    const handleWatchingWithChange = (newWatchingWith) => {
+      const newProgress = syncWatchingWithProgress(newWatchingWith, localEditForm.viewingProgress);
+      setLocalEditForm({
+        ...localEditForm,
+        watchingWith: newWatchingWith,
+        viewingProgress: newProgress
+      });
+    };
+
+    // NEW: Add partner to both watchingWith and progress tracking
+    const addPartner = () => {
+      if (newPartner.trim() && !localEditForm.watchingWith.includes(newPartner.trim())) {
+        const newWatchingWith = [...localEditForm.watchingWith, newPartner.trim()];
+        handleWatchingWithChange(newWatchingWith);
         setNewPartner('');
       }
     };
@@ -865,12 +1037,8 @@ const MainWatchCraftApp = () => {
     };
 
     const removePartner = (partner) => {
-      const newProgress = { ...localEditForm.viewingProgress };
-      delete newProgress[partner];
-      setLocalEditForm({
-        ...localEditForm,
-        viewingProgress: newProgress
-      });
+      const newWatchingWith = localEditForm.watchingWith.filter(p => p !== partner);
+      handleWatchingWithChange(newWatchingWith);
     };
 
     const handleSave = async () => {
@@ -958,31 +1126,67 @@ const MainWatchCraftApp = () => {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Recommended By</label>
-              <TagInput
-                value={localEditForm.recommendedBy}
-                onChange={(value) => setLocalEditForm({...localEditForm, recommendedBy: value})}
-                placeholder="Add people who recommended this (press Enter or comma to add)"
-              />
-            </div>
+            {/* UPDATED: Changed to dropdown for Recommended By with custom storage */}
+            <MultiSelectDropdown
+              label="Recommended By"
+              options={RECOMMENDER_OPTIONS}
+              value={localEditForm.recommendedBy}
+              onChange={(value) => setLocalEditForm({...localEditForm, recommendedBy: value})}
+              onAddCustom={addCustomRecommender}
+              placeholder="Select recommenders..."
+            />
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Moods</label>
-              <TagInput
-                value={localEditForm.mood}
-                onChange={(value) => setLocalEditForm({...localEditForm, mood: value})}
-                placeholder="Add moods (Happy, Tense, etc.)"
-              />
-            </div>
+            {/* UPDATED: Changed to dropdown for Moods with custom storage */}
+            <MultiSelectDropdown
+              label="Moods"
+              options={ALL_MOOD_OPTIONS}
+              value={localEditForm.mood}
+              onChange={(value) => setLocalEditForm({...localEditForm, mood: value})}
+              onAddCustom={addCustomMood}
+              placeholder="Select moods..."
+            />
 
             <div>
               <label className="block text-sm font-medium mb-1">Watching With</label>
-              <TagInput
-                value={localEditForm.watchingWith}
-                onChange={(value) => setLocalEditForm({...localEditForm, watchingWith: value})}
-                placeholder="Add viewing partners"
-              />
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={newPartner}
+                  onChange={(e) => setNewPartner(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addPartner()}
+                  placeholder="Add viewing partner"
+                  className="flex-1 border rounded-md px-3 py-2"
+                />
+                <button
+                  type="button"
+                  onClick={addPartner}
+                  className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 flex items-center gap-1"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Add
+                </button>
+              </div>
+              
+              {/* Watching With tags */}
+              {localEditForm.watchingWith.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {localEditForm.watchingWith.map(partner => (
+                    <span
+                      key={partner}
+                      className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs flex items-center gap-1"
+                    >
+                      {partner}
+                      <button
+                        type="button"
+                        onClick={() => removePartner(partner)}
+                        className="hover:bg-blue-200 rounded-full w-4 h-4 flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {item?.type === 'tv' && (
@@ -1013,24 +1217,6 @@ const MainWatchCraftApp = () => {
                 <div>
                   <label className="block text-sm font-medium mb-2">Individual Progress Tracking</label>
                   
-                  <div className="flex gap-2 mb-3">
-                    <input
-                      type="text"
-                      value={newPartner}
-                      onChange={(e) => setNewPartner(e.target.value)}
-                      placeholder="Add viewing partner"
-                      className="flex-1 border rounded-md px-3 py-2"
-                    />
-                    <button
-                      type="button"
-                      onClick={addViewingPartner}
-                      className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 flex items-center gap-1"
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      Add
-                    </button>
-                  </div>
-
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {Object.entries(localEditForm.viewingProgress).map(([partner, progress]) => (
                       <div key={partner} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
@@ -1060,9 +1246,53 @@ const MainWatchCraftApp = () => {
                         </button>
                       </div>
                     ))}
+                    
+                    {localEditForm.watchingWith.length === 0 && (
+                      <div className="text-center text-gray-500 text-sm py-2">
+                        Add people to "Watching With" to track their progress
+                      </div>
+                    )}
                   </div>
                 </div>
               </>
+            )}
+
+            {item?.type === 'movie' && localEditForm.watchingWith.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium mb-2">Watched Status</label>
+                <div className="space-y-2">
+                  {localEditForm.watchingWith.map(partner => (
+                    <div key={partner} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                      <span className="font-medium text-sm flex-1">{partner}:</span>
+                      <label className="flex items-center gap-1 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={localEditForm.viewingProgress[partner]?.watched || false}
+                          onChange={(e) => {
+                            const newProgress = {
+                              ...localEditForm.viewingProgress,
+                              [partner]: { watched: e.target.checked }
+                            };
+                            setLocalEditForm({
+                              ...localEditForm,
+                              viewingProgress: newProgress
+                            });
+                          }}
+                          className="h-4 w-4"
+                        />
+                        Watched
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removePartner(partner)}
+                        className="text-red-600 hover:text-red-800 p-1"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 
@@ -1255,6 +1485,18 @@ const MainWatchCraftApp = () => {
           episodeLength: '',
           totalEpisodes: ''
         });
+        
+        // NEW: Open the edit modal for the newly added manual item too
+        setEditingItem({
+          id: id,
+          status: item.status,
+          recommendedBy: item.recommendedBy,
+          mood: item.mood,
+          watchingWith: item.watchingWith,
+          currentSeason: item.currentSeason,
+          currentEpisode: item.currentEpisode,
+          viewingProgress: item.viewingProgress
+        });
       } catch (error) {
         console.error('Error adding manual item:', error);
         setError('Failed to add item. Please try again.');
@@ -1298,23 +1540,25 @@ const MainWatchCraftApp = () => {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Genres</label>
-              <TagInput
-                value={newItem.genre}
-                onChange={(value) => setNewItem({...newItem, genre: value})}
-                placeholder="Add genres (Comedy, Drama, etc.)"
-              />
-            </div>
+            {/* UPDATED: Changed to dropdown for Genres with custom storage */}
+            <MultiSelectDropdown
+              label="Genres"
+              options={ALL_GENRE_OPTIONS}
+              value={newItem.genre}
+              onChange={(value) => setNewItem({...newItem, genre: value})}
+              onAddCustom={addCustomGenre}
+              placeholder="Select genres..."
+            />
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Moods</label>
-              <TagInput
-                value={newItem.mood}
-                onChange={(value) => setNewItem({...newItem, mood: value})}
-                placeholder="Add moods (Happy, Relaxing, etc.)"
-              />
-            </div>
+            {/* UPDATED: Changed to dropdown for Moods with custom storage */}
+            <MultiSelectDropdown
+              label="Moods"
+              options={ALL_MOOD_OPTIONS}
+              value={newItem.mood}
+              onChange={(value) => setNewItem({...newItem, mood: value})}
+              onAddCustom={addCustomMood}
+              placeholder="Select moods..."
+            />
 
             <div>
               <label className="block text-sm font-medium mb-1">Status</label>
@@ -1332,14 +1576,15 @@ const MainWatchCraftApp = () => {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Recommended By</label>
-              <TagInput
-                value={newItem.recommendedBy}
-                onChange={(value) => setNewItem({...newItem, recommendedBy: value})}
-                placeholder="Add people who recommended this"
-              />
-            </div>
+            {/* UPDATED: Changed to dropdown for Recommended By with custom storage */}
+            <MultiSelectDropdown
+              label="Recommended By"
+              options={RECOMMENDER_OPTIONS}
+              value={newItem.recommendedBy}
+              onChange={(value) => setNewItem({...newItem, recommendedBy: value})}
+              onAddCustom={addCustomRecommender}
+              placeholder="Select recommenders..."
+            />
 
             {newItem.type === 'movie' ? (
               <div>
